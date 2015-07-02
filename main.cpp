@@ -69,124 +69,127 @@ int main(int argc, const char **argv) {
             IplImage *iplImg = cvQueryFrame(capture);
             frame = iplImg;
 
-            if (frame.empty())
-                break;
-            if (iplImg->origin == IPL_ORIGIN_TL)
-                frame.copyTo(frameCopy);
-            else
-                flip(frame, frameCopy, 0);
+            if (!frame.empty()) {
 
-            if (false_eyes_count <= 0) {
-                face_is_found = false;
-                face = Find(FACE, iplImg, face_is_found, 0, 0.5);
+                if (iplImg->origin == IPL_ORIGIN_TL)
+                    frame.copyTo(frameCopy);
+                else
+                    flip(frame, frameCopy, 0);
 
-                face_refreshed = true;
-            }
+                if (false_eyes_count <= 0) {
+                    face_is_found = false;
+                    face = Find(FACE, iplImg, face_is_found, 0, 0.5);
 
-            if (face_is_found) {
-                if (find_eyes_refresh_count == 0) {
-                    CvRect temp;
+                    face_refreshed = true;
+                }
 
-                    left_eye_area = left_eye;
-                    if (false_eyes_count <= 0) {
-                        left_eye_area = ClarifyArea(LEFT_EYE, &face);
-                    } else {
-                        ExpandArea(left_eye_area, expand_koeff);
+                if (face_is_found) {
+                    if (find_eyes_refresh_count == 0) {
+                        CvRect temp;
+
+                        left_eye_area = left_eye;
+                        if (false_eyes_count <= 0) {
+                            left_eye_area = ClarifyArea(LEFT_EYE, &face);
+                        } else {
+                            ExpandArea(left_eye_area, expand_koeff);
+                        }
+                        temp = Find(LEFT_EYE, iplImg, left_eye_is_found, &left_eye_area);
+                        if (left_eye_is_found) {
+                            left_eye = temp;
+                        }
+
+                        right_eye_area = right_eye;
+                        if (false_eyes_count <= 0)
+                            right_eye_area = ClarifyArea(RIGHT_EYE, &face);
+                        else
+                            ExpandArea(right_eye_area, expand_koeff);
+                        temp = Find(RIGHT_EYE, iplImg, right_eye_is_found, &right_eye_area);
+                        if (right_eye_is_found)
+                            right_eye = temp;
                     }
-                    temp = Find(LEFT_EYE, iplImg, left_eye_is_found, &left_eye_area);
-                    if (left_eye_is_found) {
-                        left_eye = temp;
+                    find_eyes_refresh_count++;
+
+                    if ((left_eye_is_found && right_eye_is_found) && (!EyesCorrect(left_eye, right_eye, iplImg))) {
+                        left_eye_is_found = false;
+                        right_eye_is_found = false;
+                        false_eyes_count = 1;
                     }
 
-                    right_eye_area = right_eye;
-                    if (false_eyes_count <= 0)
-                        right_eye_area = ClarifyArea(RIGHT_EYE, &face);
+                    if (left_eye_is_found && right_eye_is_found)
+                        false_eyes_count = max_false_eyes;
                     else
-                        ExpandArea(right_eye_area, expand_koeff);
-                    temp = Find(RIGHT_EYE, iplImg, right_eye_is_found, &right_eye_area);
-                    if (right_eye_is_found)
-                        right_eye = temp;
-                }
-                find_eyes_refresh_count++;
-
-                if ((left_eye_is_found && right_eye_is_found) && (!EyesCorrect(left_eye, right_eye, iplImg))) {
-                    left_eye_is_found = false;
-                    right_eye_is_found = false;
-                    false_eyes_count = 1;
+                        false_eyes_count--;
                 }
 
-                if (left_eye_is_found && right_eye_is_found)
-                    false_eyes_count = max_false_eyes;
-                else
-                    false_eyes_count--;
-            }
+                grey_frame = cvCreateImage(cvSize(iplImg->width, iplImg->height), iplImg->depth, 1);
+                cvCvtColor(iplImg, grey_frame, CV_RGB2GRAY);
 
-            grey_frame = cvCreateImage(cvSize(iplImg->width, iplImg->height), iplImg->depth, 1);
-            cvCvtColor(iplImg, grey_frame, CV_RGB2GRAY);
+                if (left_eye_is_found && right_eye_is_found) {
+                    if (face_refreshed)
+                        SaveCurFaceKoeffs();
+                    else
+                        face = BuildFace(cur_face_up_koeff, cur_face_down_koeff, cur_face_side_koeff, left_eye,
+                                         right_eye);
 
-            if (left_eye_is_found && right_eye_is_found) {
-                if (face_refreshed)
-                    SaveCurFaceKoeffs();
-                else
-                    face = BuildFace(cur_face_up_koeff, cur_face_down_koeff, cur_face_side_koeff, left_eye, right_eye);
+                    DrawRect(face, 150, 150, 150, iplImg);
 
-                DrawRect(face, 150, 150, 150, iplImg);
+                    int *eye_params;
 
-                int *eye_params;
+                    cvSetImageROI(grey_frame, left_eye);
+                    eye_params = GetEyeDist(grey_frame);
+                    left_eye_params.length = eye_params[0];
+                    left_eye_params.down_border = eye_params[1];
+                    left_eye_params.up_border = eye_params[2];
+                    cvResetImageROI(grey_frame);
 
-                cvSetImageROI(grey_frame, left_eye);
-                eye_params = GetEyeDist(grey_frame);
-                left_eye_params.length = eye_params[0];
-                left_eye_params.down_border = eye_params[1];
-                left_eye_params.up_border = eye_params[2];
-                cvResetImageROI(grey_frame);
+                    cvSetImageROI(iplImg, left_eye);
+                    DrawRhombus(eye_params, 0, 255, 0, left_eye.height, left_eye.width, iplImg);
+                    delete[] eye_params;
+                    cvResetImageROI(iplImg);
 
-                cvSetImageROI(iplImg, left_eye);
-                DrawRhombus(eye_params, 0, 255, 0, left_eye.height, left_eye.width, iplImg);
-                delete[] eye_params;
-                cvResetImageROI(iplImg);
+                    cvSetImageROI(grey_frame, right_eye);
+                    eye_params = GetEyeDist(grey_frame);
+                    right_eye_params.length = eye_params[0];
+                    right_eye_params.down_border = eye_params[1];
+                    right_eye_params.up_border = eye_params[2];
+                    cvResetImageROI(grey_frame);
 
-                cvSetImageROI(grey_frame, right_eye);
-                eye_params = GetEyeDist(grey_frame);
-                right_eye_params.length = eye_params[0];
-                right_eye_params.down_border = eye_params[1];
-                right_eye_params.up_border = eye_params[2];
-                cvResetImageROI(grey_frame);
+                    cvSetImageROI(iplImg, right_eye);
+                    DrawRhombus(eye_params, 0, 255, 0, right_eye.height, right_eye.width, iplImg);
+                    delete[] eye_params;
+                    cvResetImageROI(iplImg);
 
-                cvSetImageROI(iplImg, right_eye);
-                DrawRhombus(eye_params, 0, 255, 0, right_eye.height, right_eye.width, iplImg);
-                delete[] eye_params;
-                cvResetImageROI(iplImg);
+                    ///////////////////////////////////////////////////////////// BLINK DETECTION
 
-                ///////////////////////////////////////////////////////////// BLINK DETECTION
-
-                if ((left_eye_params.up_border >= left_eye.height / 2) || (right_eye_params.up_border >= right_eye.height / 2)) {
-                    if (!eyes_are_closed) {
-                        cout << "blink" << endl;
+                    if ((left_eye_params.up_border >= left_eye.height / 2) ||
+                        (right_eye_params.up_border >= right_eye.height / 2)) {
+                        if (!eyes_are_closed) {
+                            cout << "blink" << endl;
+                        }
+                        eyes_are_closed = true;
+                        DrawRect(left_eye, 0, 0, 0, iplImg);
+                        DrawRect(right_eye, 0, 0, 0, iplImg);
+                    } else {
+                        eyes_are_closed = false;
+                        DrawRect(left_eye, 255, 255, 255, iplImg);
+                        DrawRect(right_eye, 255, 255, 255, iplImg);
                     }
-                    eyes_are_closed = true;
-                    DrawRect(left_eye, 0, 0, 0, iplImg);
-                    DrawRect(right_eye, 0, 0, 0, iplImg);
+
+                    /////////////////////////////////////////////////////////////
                 } else {
-                    eyes_are_closed = false;
-                    DrawRect(left_eye, 255, 255, 255, iplImg);
-                    DrawRect(right_eye, 255, 255, 255, iplImg);
+                    find_eyes_refresh_count = 0;
+                }
+                if (find_eyes_refresh_count > find_eyes_refresh_iterations) {
+                    find_eyes_refresh_count = 0;
                 }
 
-                /////////////////////////////////////////////////////////////
-            } else {
-                find_eyes_refresh_count = 0;
+                face_refreshed = false;
+
+                cvShowImage("result", iplImg);
+
+                if (waitKey(10) >= 0)
+                    break;
             }
-            if (find_eyes_refresh_count > find_eyes_refresh_iterations) {
-                find_eyes_refresh_count = 0;
-            }
-
-            face_refreshed = false;
-
-            cvShowImage("result", iplImg);
-
-            if (waitKey(10) >= 0)
-                break;
         }
     }
 

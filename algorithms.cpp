@@ -7,11 +7,11 @@ CvHaarClassifierCascade *right_eye_cascade;
 // Change haarcascade`s file paths to absolute paths on YOUR machine
 void InitCascades() {
     string path;
-    path = "/Users/andheroe/Documents/algo_lib/haarcascade_frontalface_alt_tree.xml";
+    path = "/Users/andheroe/Desktop/blink-detection/haarcascade_frontalface_alt_tree.xml";
     face_cascade = (CvHaarClassifierCascade *) cvLoad(path.c_str(), 0, 0, 0);
-    path = "/Users/andheroe/Documents/algo_lib/haarcascade_mcs_lefteye.xml";
+    path = "/Users/andheroe/Desktop/blink-detection/haarcascade_mcs_lefteye.xml";
     left_eye_cascade = (CvHaarClassifierCascade *) cvLoad(path.c_str(), 0, 0, 0);
-    path = "/Users/andheroe/Documents/algo_lib/haarcascade_mcs_righteye.xml";
+    path = "/Users/andheroe/Desktop/blink-detection/haarcascade_mcs_righteye.xml";
     right_eye_cascade = (CvHaarClassifierCascade *) cvLoad(path.c_str(), 0, 0, 0);
 }
 
